@@ -2,6 +2,7 @@ import nltk
 from nltk.corpus import brown
 import pandas as pd
 
+
 def load_data():
     # Ensure that the Brown corpus is downloaded
     nltk.download('brown')
@@ -21,7 +22,8 @@ def load_data():
     print(f"Test set size: {len(test_set)} sentences")
     return train_set, test_set
 
-def error_rate_using_likelyhood(df_train, df_test):
+
+def make_sorted_dict(df_train):
     count_per_tag = df_train.groupby(["name", "tag"]).size().reset_index(name='appearances')
     count_per_word = df_train.groupby(["name"]).size().reset_index(name='total_word_appearances')
     count_per_tag = count_per_tag.merge(count_per_word, on="name", how="left")
@@ -45,16 +47,23 @@ def error_rate_using_likelyhood(df_train, df_test):
     for word in count_dict:
         count_dict[word] = sorted(count_dict[word], key=lambda x: x[1], reverse=True)
 
+    return count_dict
+
+
+def error_rate_using_likelyhood(df_train, df_test):
+    count_dict = make_sorted_dict(df_train)
     df_test["predicted tag"] = df_test.apply(lambda x: get_prob(x["name"], count_dict), axis=1)
     accuracy = len(df_test[df_test["tag"] == df_test["predicted tag"]]) / len(df_test)
     error_rate = 1 - accuracy
     return error_rate
+
 
 def get_prob(word, count_dict):
     if count_dict.get(word):
         return count_dict[word][0][0]
     else:
         return "NN"
+
 
 def turn_set_to_data_frame(data):
     list_of_pd = []
@@ -64,10 +73,11 @@ def turn_set_to_data_frame(data):
     df.columns = ["name", "tag"]
     return df
 
+
 if __name__ == "__main__":
     # question a
     train_set, test_set = load_data()
 
     # question b
     df_train, df_test = turn_set_to_data_frame(train_set), turn_set_to_data_frame(test_set)
-    
+    error_rate = error_rate_using_likelyhood(df_train, df_test)
