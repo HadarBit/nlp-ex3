@@ -69,51 +69,63 @@ def compute_transition_emission_probabilities(train_set, smoothing_param=0):
 
 
 def viterbi_algorithm(sentence, transition_probabilities, emission_probabilities, all_tags):
+    # unknown = 0
+    unknown = 1e-6
     n = len(sentence)
-    dp = [{} for _ in range(n)]  # dp[k][tag] = max probability of the k-th word ending with `tag`
+    dp = [{} for _ in range(n)]  # dp[k] = {tag: max probability of the k-th word ending with `tag`}
     backpointer = [{} for _ in range(n)]
 
     # Initialization for the first word
     for tag in all_tags:
-        transition_prob = transition_probabilities.get('<s>', {}).get(tag, 1e-6)
-        emission_prob = emission_probabilities.get(tag, {}).get(sentence[0], 1e-6)
-        dp[0][tag] = transition_prob * emission_prob
-        backpointer[0][tag] = None
+        transition_prob = transition_probabilities.get('<s>', {}).get(tag, unknown)
+        emission_prob = emission_probabilities.get(tag, {}).get(sentence[0], unknown)
+        if transition_prob == 0 or emission_prob == 0:
+            dp[0][tag] = 0
+            backpointer[0][tag] = None
+        else:
+            dp[0][tag] = transition_prob * emission_prob
+            backpointer[0][tag] = None
 
     # Recursion for subsequent words
     for k in range(1, n):
         for tag in all_tags:
             max_prob, best_prev_tag = 0, None
             for prev_tag in all_tags:
-                prob = dp[k - 1].get(prev_tag, 1e-6) * transition_probabilities.get(prev_tag,
-                                                                                    {}).get(tag,
-                                                                                            1e-6)
+                # Ensure that dp[k-1][prev_tag] is a dictionary, not an int
+                prev_prob = dp[k - 1].get(prev_tag, 0)
+                transition_prob = transition_probabilities.get(prev_tag, {}).get(tag, unknown)
+                prob = prev_prob * transition_prob
                 if prob > max_prob:
                     max_prob = prob
                     best_prev_tag = prev_tag
-            dp[k][tag] = max_prob * emission_probabilities.get(tag, {}).get(sentence[k], 1e-6)
-            backpointer[k][tag] = best_prev_tag
+            emission_prob = emission_probabilities.get(tag, {}).get(sentence[k], unknown)
+            if max_prob == 0 or emission_prob == 0:
+                dp[k][tag] = 0
+                backpointer[k][tag] = None
+            else:
+                dp[k][tag] = max_prob * emission_prob
+                backpointer[k][tag] = best_prev_tag
 
     # Termination: Find the best path
     max_final_prob = 0
     best_final_tag = None
     for tag in all_tags:
-        prob = dp[n - 1].get(tag, 1e-6) * transition_probabilities.get(tag, {}).get('</s>', 1e-6)
-        if prob > max_final_prob:
-            max_final_prob = prob
+        final_prob = dp[n - 1].get(tag, 0) * transition_probabilities.get(tag, {}).get('</s>', unknown)
+        if final_prob > max_final_prob:
+            max_final_prob = final_prob
             best_final_tag = tag
 
     # Backtracking to find the best sequence
     best_sequence = [best_final_tag]
     for k in range(n - 1, 0, -1):
-        best_sequence.append(backpointer[k][best_sequence[-1]])
+        best_sequence.append(backpointer[k].get(best_sequence[-1], '<s>'))
     best_sequence.reverse()
 
     return best_sequence
 
 
-def run_viterbi_on_test_set(test_set, transition_probabilities, emission_probabilities, all_tags,
-                            train_words):
+def run_viterbi_on_test_set(test_set1, transition_probabilities, emission_probabilities, all_tags,
+                            train_words1):
     # Initialize counters for error rates
     known_correct = 0
     known_total = 0
@@ -122,7 +134,7 @@ def run_viterbi_on_test_set(test_set, transition_probabilities, emission_probabi
     total_correct = 0
     total_words = 0
 
-    for sentence in test_set:
+    for sentence in test_set1:
         # Separate words and true tags
         words = [word for word, _ in sentence]
         true_tags = [tag for _, tag in sentence]
@@ -134,7 +146,7 @@ def run_viterbi_on_test_set(test_set, transition_probabilities, emission_probabi
         # Compare true tags with predicted tags
         for true_tag, predicted_tag, word in zip(true_tags, predicted_tags, words):
             total_words += 1
-            if word in train_words:  # Known word
+            if word in train_words1:  # Known word
                 known_total += 1
                 if true_tag == predicted_tag:
                     known_correct += 1
@@ -161,9 +173,9 @@ def run_viterbi_on_test_set(test_set, transition_probabilities, emission_probabi
     print(f"Overall error rate: {overall_error_rate:.4f}")
 
 
-def make_sorted_dict(df_train):
-    count_per_tag = df_train.groupby(["name", "tag"]).size().reset_index(name='appearances')
-    count_per_word = df_train.groupby(["name"]).size().reset_index(name='total_word_appearances')
+def make_sorted_dict(df_train1):
+    count_per_tag = df_train1.groupby(["name", "tag"]).size().reset_index(name='appearances')
+    count_per_word = df_train1.groupby(["name"]).size().reset_index(name='total_word_appearances')
     count_per_tag = count_per_tag.merge(count_per_word, on="name", how="left")
     count_per_tag["rate"] = count_per_tag["appearances"] / count_per_tag["total_word_appearances"]
 
@@ -187,32 +199,32 @@ def make_sorted_dict(df_train):
     return count_dict
 
 
-def calculate_error_rates(df_train, df_test):
-    count_dict = make_sorted_dict(df_train)
+def calculate_error_rates(df_train1, df_test1):
+    count_dict = make_sorted_dict(df_train1)
 
     # Add a column for predicted tags
-    df_test["predicted_tag"] = df_test["name"].apply(lambda word: get_prob(word, count_dict))
+    df_test1["predicted_tag"] = df_test1["name"].apply(lambda word: get_prob(word, count_dict))
 
     # Determine if a word is known or unknown
-    known_words = set(df_train["name"].unique())
-    df_test["is_known"] = df_test["name"].apply(lambda word: word in known_words)
+    known_words = set(df_train1["name"].unique())
+    df_test1["is_known"] = df_test1["name"].apply(lambda word: word in known_words)
 
     # Calculate accuracy for known and unknown words
-    known_df = df_test[df_test["is_known"]]
-    unknown_df = df_test[~df_test["is_known"]]
+    known_df = df_test1[df_test1["is_known"]]
+    unknown_df = df_test1[~df_test1["is_known"]]
 
     known_accuracy = len(known_df[known_df["tag"] == known_df["predicted_tag"]]) / len(
         known_df) if len(known_df) > 0 else 0
     unknown_accuracy = len(unknown_df[unknown_df["tag"] == unknown_df["predicted_tag"]]) / len(
         unknown_df) if len(unknown_df) > 0 else 0
 
-    overall_accuracy = len(df_test[df_test["tag"] == df_test["predicted_tag"]]) / len(df_test)
+    overall_accuracy = len(df_test1[df_test1["tag"] == df_test1["predicted_tag"]]) / len(df_test1)
 
-    known_error_rate = 1 - known_accuracy
-    unknown_error_rate = 1 - unknown_accuracy
-    overall_error_rate = 1 - overall_accuracy
+    known_error_rate1 = 1 - known_accuracy
+    unknown_error_rate1 = 1 - unknown_accuracy
+    overall_error_rate1 = 1 - overall_accuracy
 
-    return known_error_rate, unknown_error_rate, overall_error_rate
+    return known_error_rate1, unknown_error_rate1, overall_error_rate1
 
 
 def get_prob(word, count_dict):
@@ -231,9 +243,9 @@ def turn_set_to_data_frame(data):
     return df
 
 
-def get_all_tags(train_set):
+def get_all_tags(train_set1):
     tags = set()
-    for sentence in train_set:
+    for sentence in train_set1:
         for _, tag in sentence:
             tags.add(tag)
     return tags
@@ -257,14 +269,13 @@ if __name__ == "__main__":
     print(f"Unknown words error rate: {unknown_error_rate:.4f}")
     print(f"Overall error rate: {overall_error_rate:.4f}")
 
-    # print("\nQ3c (iii)")
-    # transition_probabilities, emission_probabilities = compute_transition_emission_probabilities(
-    #     train_set)
+    print("\nQ3c (iii)")
+    transition_probabilities, emission_probabilities = compute_transition_emission_probabilities(
+        train_set)
     all_tags = get_all_tags(train_set)
     train_words = set(word for sentence in train_set for word, _ in sentence)
-    # run_viterbi_on_test_set(test_set, transition_probabilities, emission_probabilities, all_tags,
-    #                         train_words)
-
+    run_viterbi_on_test_set(test_set, transition_probabilities, emission_probabilities, all_tags,
+                            train_words)
 
     # Question d
     print("\nQ3d (ii)")
