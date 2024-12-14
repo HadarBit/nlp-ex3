@@ -67,8 +67,8 @@ def get_prob(word, count_dict):
 
 def turn_set_to_data_frame(data):
     list_of_pd = []
-    for i in range(len(train_set)):
-        list_of_pd.append(pd.DataFrame(train_set[i]))
+    for i in range(len(data)):
+        list_of_pd.append(pd.DataFrame(data[i]))
     df = pd.concat(list_of_pd)
     df.columns = ["name", "tag"]
     return df
@@ -81,3 +81,4 @@ if __name__ == "__main__":
     # question b
     df_train, df_test = turn_set_to_data_frame(train_set), turn_set_to_data_frame(test_set)
     error_rate = error_rate_using_likelyhood(df_train, df_test)
+    print( "error rate - " , error_rate)

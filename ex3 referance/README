@@ -1,0 +1,127 @@
+README- file NLP EX2
+submitted by:
+Lior Gefen
+Yotam Cohen
+
+the files submitted are:
+1. Constants.py = a file for saving constants for all other files to use
+
+2.mleTagBaseline = a file meant to implement mle baseline tag model,
+is called from main.py and regards question (a) +(b)
+
+2.bigramHMM =  a class file meant to implement the bigram HMM model with optional modifications of smoothing and
+  pseudo words is called in main.py and regards questions (c) + (d) + (e)
+
+3. psuedoWords = a class file meant to implement the functionality of  pseudo words on a dataset for model uses
+ called in aid of a bigram HMM model in question (e) in main.py
+
+4.main.py = executes all questions using helper methods and above classes
+
+Answers to questions: (a) - (e) Practical part:
+Qb - ii
+MLE tag classifier:
+The error rate of seen words is: 0.0701023967593114
+The error rate of unseen words is: 0.743455497382199
+The error rate of all words is: 0.14701485099172729
+
+Qc - iii
+Bigram HMM:
+The error rate of seen words is: 0.16957353437605494
+The error rate of unseen words is: 0.7757417102966842
+The error rate of all words is: 0.238811920661816
+
+Qd - iii
+Bigram HMM with Add-1 smoothing:
+The error rate of seen words is: 0.1436930347698886
+The error rate of unseen words is: 0.712914485165794
+The error rate of all words is: 0.2087112528655437
+
+Qe - ii
+Bigram HMM with Pseudo-words:
+The error rate of seen words is: 0.16000900191290646
+The error rate of unseen words is: 0.45986038394415363
+The error rate of all words is: 0.1942589454799163
+
+Qe - iii
+Bigram HMM with Add-1 smoothing and Pseudo-words:
+The error rate of seen words is: 0.12703949589287722
+The error rate of unseen words is: 0.4432809773123909
+The error rate of all words is: 0.1631615668294628
+
+Confusion matrix investigation:
+ for the true POS ', the most frequent POS mistakenly predicted is .
+ for the true POS '', the most frequent POS mistakenly predicted is NN
+ for the true POS (, the most frequent POS mistakenly predicted is NP
+ for the true POS ), the most frequent POS mistakenly predicted is ,
+ for the true POS *, the most frequent POS mistakenly predicted is NP
+ for the true POS ,, the most frequent POS mistakenly predicted is '
+ for the true POS --, the most frequent POS mistakenly predicted is VBD
+ for the true POS ., the most frequent POS mistakenly predicted is '
+ for the true POS :, the most frequent POS mistakenly predicted is ,
+ for the true POS ABN, the most frequent POS mistakenly predicted is ,
+ for the true POS ABX, the most frequent POS mistakenly predicted is AT
+ for the true POS AP, the most frequent POS mistakenly predicted is NP
+ for the true POS AT, the most frequent POS mistakenly predicted is NP
+ for the true POS BE, the most frequent POS mistakenly predicted is '
+ for the true POS BED, the most frequent POS mistakenly predicted is IN
+ for the true POS BEDZ, the most frequent POS mistakenly predicted is '
+ for the true POS BEG, the most frequent POS mistakenly predicted is NP
+ for the true POS BEN, the most frequent POS mistakenly predicted is '
+ for the true POS BER, the most frequent POS mistakenly predicted is NN
+ for the true POS BEZ, the most frequent POS mistakenly predicted is '
+ for the true POS CC, the most frequent POS mistakenly predicted is CS
+ for the true POS CD, the most frequent POS mistakenly predicted is JJ
+ for the true POS CS, the most frequent POS mistakenly predicted is IN
+ for the true POS DO, the most frequent POS mistakenly predicted is MD
+ for the true POS DOD, the most frequent POS mistakenly predicted is TO
+ for the true POS DOZ, the most frequent POS mistakenly predicted is TO
+ for the true POS DT, the most frequent POS mistakenly predicted is CS
+ for the true POS DTI, the most frequent POS mistakenly predicted is AT
+ for the true POS DTS, the most frequent POS mistakenly predicted is AT
+ for the true POS EX, the most frequent POS mistakenly predicted is NNS
+ for the true POS FW, the most frequent POS mistakenly predicted is NN
+ for the true POS HV, the most frequent POS mistakenly predicted is VBD
+ for the true POS HVD, the most frequent POS mistakenly predicted is CS
+ for the true POS HVG, the most frequent POS mistakenly predicted is IN
+ for the true POS HVN, the most frequent POS mistakenly predicted is VBN
+ for the true POS HVZ, the most frequent POS mistakenly predicted is ,
+ for the true POS IN, the most frequent POS mistakenly predicted is TO
+ for the true POS JJ, the most frequent POS mistakenly predicted is NN
+ for the true POS JJR, the most frequent POS mistakenly predicted is NN
+ for the true POS JJS, the most frequent POS mistakenly predicted is NN
+ for the true POS JJT, the most frequent POS mistakenly predicted is NN
+ for the true POS MD, the most frequent POS mistakenly predicted is ''
+ for the true POS NN, the most frequent POS mistakenly predicted is NP
+ for the true POS NNS, the most frequent POS mistakenly predicted is NN
+ for the true POS NP, the most frequent POS mistakenly predicted is NN
+ for the true POS NPS, the most frequent POS mistakenly predicted is NN
+ for the true POS NR, the most frequent POS mistakenly predicted is JJ
+ for the true POS OD, the most frequent POS mistakenly predicted is NP
+ for the true POS PN, the most frequent POS mistakenly predicted is CC
+ for the true POS PP, the most frequent POS mistakenly predicted is NP
+ for the true POS PPL, the most frequent POS mistakenly predicted is WPS
+ for the true POS PPLS, the most frequent POS mistakenly predicted is NNS
+ for the true POS PPO, the most frequent POS mistakenly predicted is AT
+ for the true POS PPS, the most frequent POS mistakenly predicted is PPO
+ for the true POS PPSS, the most frequent POS mistakenly predicted is HVZ
+ for the true POS QL, the most frequent POS mistakenly predicted is RB
+ for the true POS QLP, the most frequent POS mistakenly predicted is NN
+ for the true POS RB, the most frequent POS mistakenly predicted is NN
+ for the true POS RBR, the most frequent POS mistakenly predicted is NP
+ for the true POS RP, the most frequent POS mistakenly predicted is IN
+ for the true POS TO, the most frequent POS mistakenly predicted is IN
+ for the true POS VB, the most frequent POS mistakenly predicted is NN
+ for the true POS VBD, the most frequent POS mistakenly predicted is VBN
+ for the true POS VBG, the most frequent POS mistakenly predicted is NN
+ for the true POS VBN, the most frequent POS mistakenly predicted is JJ
+ for the true POS VBZ, the most frequent POS mistakenly predicted is NN
+ for the true POS WDT, the most frequent POS mistakenly predicted is AT
+ for the true POS WP, the most frequent POS mistakenly predicted is IN
+ for the true POS WPS, the most frequent POS mistakenly predicted is CS
+ for the true POS WQL, the most frequent POS mistakenly predicted is WRB
+ for the true POS WRB, the most frequent POS mistakenly predicted is QL
+ for the true POS ``, the most frequent POS mistakenly predicted is '
+
+
+
+
