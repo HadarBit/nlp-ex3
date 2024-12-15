@@ -1,4 +1,5 @@
-from collections import defaultdict
+from collections import defaultdict, Counter
+import re
 
 import nltk
 from nltk.corpus import brown
@@ -110,7 +111,8 @@ def viterbi_algorithm(sentence, transition_probabilities, emission_probabilities
     max_final_prob = 0
     best_final_tag = None
     for tag in all_tags:
-        final_prob = dp[n - 1].get(tag, 0) * transition_probabilities.get(tag, {}).get('</s>', unknown)
+        final_prob = dp[n - 1].get(tag, 0) * transition_probabilities.get(tag, {}).get('</s>',
+                                                                                       unknown)
         if final_prob > max_final_prob:
             max_final_prob = final_prob
             best_final_tag = tag
@@ -171,6 +173,94 @@ def run_viterbi_on_test_set(test_set1, transition_probabilities, emission_probab
     print(f"Known words error rate: {known_error_rate:.4f}")
     print(f"Unknown words error rate: {unknown_error_rate:.4f}")
     print(f"Overall error rate: {overall_error_rate:.4f}")
+
+
+def assign_pseudo_word(word):
+    # Numbers and special characters
+    if re.match(r'^\d+$', word):
+        return "<NUMBER>"
+    if re.search(r'\d', word):
+        return "<ALPHANUMERIC>"
+
+    # Capitalization
+    if word[0].isupper():
+        return "<PROPER-NOUN>"
+
+    # Suffix-based categorization
+    if word.endswith("ing"):
+        return "<VERB-ING>"
+    if word.endswith("ed"):
+        return "<VERB-PAST>"
+    if word.endswith("s") and len(word) > 1:
+        return "<PLURAL-NOUN>"
+    if word.endswith("tion"):
+        return "<NOMINALIZATION>"
+
+    # Word length
+    if len(word) <= 2:
+        return "<SHORT-WORD>"
+    if len(word) > 10:
+        return "<LONG-WORD>"
+
+    # Default: Unknown word
+    return "<UNKNOWN>"
+
+
+def get_unknown_and_low_freq_words(df_train, df_test, freq_threshold=5):
+    unknown_words = df_test[~df_test["name"].isin(df_train["name"])]["name"].tolist()
+    low_freq_words = df_test.groupby("name").value_counts().to_frame("cnt").query(
+        "cnt < @freq_threshold").reset_index()["name"].tolist()
+    return unknown_words + low_freq_words
+
+
+# Example usage
+
+def __update_data_set_with_pseudo_words(train_set, test_set, words_for_pseudo_tagging,
+                                        pseudo_words):
+    new_train = []
+    for sentence in train_set:
+        new_sentence = []
+        for word, tag in sentence:
+
+            if word in words_for_pseudo_tagging:
+                # Replace word with its pseudo-word and retain the tag
+                new_sentence.append((word, pseudo_words[word]))
+            else:
+                # Keep the original word and tag
+                new_sentence.append((word, tag))
+        new_train.append(new_sentence)
+
+    new_test = []
+    for i, sentence in enumerate(test_set):
+        new_sentence = []
+        print(f"Sentenec is {sentence}, index {i}")
+        for word, tag in sentence:
+            # print(f"Processing word: {word}, tag: {tag}")
+            if word in words_for_pseudo_tagging:
+                # Replace word with its pseudo-word and retain the tag
+                new_sentence.append((word, pseudo_words[word]))
+                # If the word is unknown (from test set) and not in the training set,
+                # add it to training data
+                if word not in train_set:
+                    new_train.append([(word, pseudo_words[word])])
+            else:
+                # Keep the original word and tag
+                new_sentence.append((word, tag))
+        new_test.append(new_sentence)
+
+    return new_train, new_test
+
+
+def create_pseudo_words(train_set, test_set, freq_threshold=5):
+    # Count word frequencies
+    df_train, df_test = turn_set_to_data_frame(train_set), turn_set_to_data_frame(test_set)
+    words_for_pseudo_tagging = get_unknown_and_low_freq_words(df_train, df_test, freq_threshold)
+    # Assign pseudo-words to each word
+    pseudo_words = {word: assign_pseudo_word(word) for word in words_for_pseudo_tagging}
+    new_train, new_test = __update_data_set_with_pseudo_words(train_set, test_set,
+                                                              words_for_pseudo_tagging,
+                                                              pseudo_words)
+    return new_train, new_test
 
 
 def make_sorted_dict(df_train1):
@@ -270,16 +360,29 @@ if __name__ == "__main__":
     print(f"Overall error rate: {overall_error_rate:.4f}")
 
     print("\nQ3c (iii)")
-    transition_probabilities, emission_probabilities = compute_transition_emission_probabilities(
-        train_set)
-    all_tags = get_all_tags(train_set)
-    train_words = set(word for sentence in train_set for word, _ in sentence)
-    run_viterbi_on_test_set(test_set, transition_probabilities, emission_probabilities, all_tags,
-                            train_words)
+    # transition_probabilities, emission_probabilities = compute_transition_emission_probabilities(
+    #     train_set)
+    # all_tags = get_all_tags(train_set)
+    # train_words = set(word for sentence in train_set for word, _ in sentence)
+    # run_viterbi_on_test_set(test_set, transition_probabilities, emission_probabilities, all_tags,
+    #                         train_words)
 
     # Question d
     print("\nQ3d (ii)")
-    transition_probabilities2, emission_probabilities2 = compute_transition_emission_probabilities(
-        train_set, smoothing_param=1)
-    run_viterbi_on_test_set(test_set, transition_probabilities2, emission_probabilities2, all_tags,
-                            train_words)
+    # transition_probabilities2, emission_probabilities2 =
+    # compute_transition_emission_probabilities(
+    #     train_set, smoothing_param=1)
+    # run_viterbi_on_test_set(test_set, transition_probabilities2, emission_probabilities2,
+    # all_tags,
+    #                         train_words)
+
+    print("\nQ3e (ii)")
+    pseudo_train, pseudo_test = create_pseudo_words(train_set, test_set, 5)
+    transition_probabilities_pseudo, emission_probabilities_pseudo = (
+        compute_transition_emission_probabilities(
+        pseudo_train))
+    all_tags_pseudo = get_all_tags(pseudo_train)
+    train_words_pseudo = set(word for sentence in pseudo_train for word, _ in sentence)
+    run_viterbi_on_test_set(pseudo_test, transition_probabilities_pseudo,
+                            emission_probabilities_pseudo, all_tags_pseudo,
+                            train_words_pseudo)
