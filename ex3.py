@@ -11,6 +11,21 @@ START_TAG = "<s>"
 END_TAG = "</s>"
 
 
+def clean_corpus(corpus):
+    for i, sentence in enumerate(corpus):
+        for j, (word, tag) in enumerate(sentence):
+            corpus[i][j] = (word, clean_tag(tag))
+    return corpus
+
+def clean_tag(tag):
+    # Use regex to match the prefix before the first '+', '-', '*', or '$'
+    match = re.match(r'[^+\-*\$]*', tag)
+    prefix = match.group()
+    if prefix:
+        return prefix
+    return tag
+
+
 def load_data():
     # Ensure that the Brown corpus is downloaded
     nltk.download('brown')
@@ -24,6 +39,9 @@ def load_data():
     # Divide the sentences into training and test sets
     train_set = news_sentences[:split_index]
     test_set = news_sentences[split_index:]
+    
+    train_set = clean_corpus(train_set)
+    test_set = clean_corpus(test_set)
 
     # Optionally, you can print the sizes of the train and test sets
     print(f"Training set size: {len(train_set)} sentences")
@@ -33,6 +51,36 @@ def load_data():
 
 from collections import defaultdict
 
+
+def get_tranistion_probs(transition_counts):
+    transition_probabilities = {
+        prev_tag: {tag: count / sum(next_tags.values())
+            for  tag, count in next_tags.items()
+        }for prev_tag, next_tags in transition_counts.items()}
+    return transition_probabilities 
+
+def get_emission_probs(unique_tags,unique_words,emission_counts,smoothing_param,tag_counts):
+  if smoothing_param > 0:
+    emission_probabilities = {}
+    vocab_size = len(unique_words)  # For smoothing calculations
+    for tag in unique_tags:
+        total = tag_counts[tag]
+        tag_total_with_smoothing = total + smoothing_param * vocab_size
+
+        emission_probabilities[tag] = {
+            word: (emission_counts[tag][word] + smoothing_param) / tag_total_with_smoothing
+            for word in unique_words
+        }
+  else:
+    emission_probabilities = {}
+    for tag, words in emission_counts.items():
+        total = tag_counts[tag]
+        emission_probabilities[tag] = {word: count / total  if count > 0 else 0 for word, count in words.items()}
+  return emission_probabilities
+
+
+
+
 def compute_transition_emission_probabilities(train_set, test_set, smoothing_param=0):
     # Transition and emission counts
     transition_counts = defaultdict(lambda: defaultdict(int))
@@ -40,9 +88,7 @@ def compute_transition_emission_probabilities(train_set, test_set, smoothing_par
     tag_counts = defaultdict(int)
 
     # Collect unique words and tags from training set (no need for test set here)
-    unique_words = set()
-    unique_tags = set()
-
+    unique_words,unique_tags = set(),set()
     for sentence in train_set:
         for word, tag in sentence:
             unique_words.add(word)
@@ -62,98 +108,11 @@ def compute_transition_emission_probabilities(train_set, test_set, smoothing_par
         transition_counts[previous_tag][END_TAG] += 1
 
     # Compute transition probabilities
-    transition_probabilities = {
-        prev_tag: {
-            tag: count / sum(next_tags.values())
-            for tag, count in next_tags.items()
-        }
-        for prev_tag, next_tags in transition_counts.items()
-    }
-
+    transition_probabilities =get_tranistion_probs(transition_counts)
     # Compute emission probabilities
-    emission_probabilities = {}
-    vocab_size = len(unique_words)  # For smoothing calculations
-    for tag in unique_tags:
-        total = tag_counts[tag]
-        tag_total_with_smoothing = total + smoothing_param * vocab_size
-
-        emission_probabilities[tag] = {
-            word: (emission_counts[tag][word] + smoothing_param) / tag_total_with_smoothing
-            for word in unique_words
-        }
-
+    emission_probabilities =get_emission_probs(unique_tags,unique_words,emission_counts,smoothing_param,tag_counts)
     return transition_probabilities, emission_probabilities
 
-
-# def compute_transition_emission_probabilities(train_set, test_set, smoothing_param=0):
-#     # Transition and emission counts
-#     transition_counts = defaultdict(lambda: defaultdict(int))
-#     emission_counts = defaultdict(lambda: defaultdict(int))
-#     tag_counts = defaultdict(int)
-#
-#     # Process each sentence
-#     unique_words ,unique_tags = set(), set()
-#     for dataset in [train_set, test_set]:
-#         for sentence in dataset:
-#             for word, tag in sentence:
-#                 unique_words.add(word)
-#                 unique_tags.add(tag)
-#
-#     # Initialize emission counts with all words and tags set to 0
-#     for tag in unique_tags:
-#         for word in unique_words:
-#             emission_counts[tag][word] = 0
-#
-#     for sentence in train_set:
-#         previous_tag = START_TAG
-#         for word, tag in sentence:
-#             # Update counts
-#             transition_counts[previous_tag][tag] += 1
-#             emission_counts[tag][word] += 1
-#             tag_counts[tag] += 1
-#             previous_tag = tag
-#
-#         # Handle end-of-sentence transition
-#         transition_counts[previous_tag][END_TAG] += 1
-#
-#     # Compute probabilities
-#     transition_probabilities = {}
-#     for prev_tag, next_tags in transition_counts.items():
-#         total = sum(next_tags.values())
-#         transition_probabilities[prev_tag] = {tag: count / total for tag, count in
-#                                               next_tags.items()}
-#
-#     emission_probabilities = {}
-#     # for tag, words in emission_counts.items():
-#     #     total = tag_counts[tag]
-#     #     if smoothing_param > 0:
-#     #         emission_probabilities[tag] = {
-#     #             word: (count + smoothing_param) / sum(
-#     #                 [emission_counts[tag][word] + smoothing_param for word in
-#     #                  emission_counts[tag].keys()])
-#     #             for word, count in words.items()
-#     #         }
-#     #     else:
-#     #         emission_probabilities[tag] = {
-#     #             word: count / total  if count > 0 else 0
-#     #             for word, count in words.items()
-#     #         }
-#     for tag in unique_tags:
-#         emission_probabilities[tag] = {}
-#         tag_total_with_smoothing = sum(
-#                     [emission_counts[tag][word] + smoothing_param for word in
-#                      emission_counts[tag].keys()])
-#         total = tag_counts[tag]
-#         for word in unique_words:
-#             emission_probabilities[tag][word] = 0
-#             if smoothing_param > 0 :
-#                 emission_probabilities[tag][word] = (emission_counts[tag][word] +smoothing_param) / tag_total_with_smoothing
-#             else:
-#                 if total > 0 :
-#                     emission_probabilities[tag][word] = emission_counts[tag][word]/total
-#
-#
-#     return transition_probabilities, emission_probabilities
 
 
 def viterbi_algorithm(sentence, transition_probabilities, emission_probabilities, all_tags,
@@ -208,7 +167,7 @@ def viterbi_algorithm(sentence, transition_probabilities, emission_probabilities
 
 
 def run_viterbi_on_test_set(test_set1, transition_probabilities, emission_probabilities, all_tags,
-                            train_words1, smoothing_param=0):
+                            train_words1, smoothing_param=0,known_words = None):
     # Initialize counters for error rates
     known_correct = 0
     known_total = 0
@@ -216,6 +175,9 @@ def run_viterbi_on_test_set(test_set1, transition_probabilities, emission_probab
     unknown_total = 0
     total_correct = 0
     total_words = 0
+    predict_output = {"word":[],"tag":[],"pred":[]}
+    if known_words is None:
+      known_words = train_words1
 
     for sentence in test_set1:
         # Separate words and true tags
@@ -228,8 +190,11 @@ def run_viterbi_on_test_set(test_set1, transition_probabilities, emission_probab
 
         # Compare true tags with predicted tags
         for true_tag, predicted_tag, word in zip(true_tags, predicted_tags, words):
+            predict_output["word"].append(word)
+            predict_output["tag"].append(true_tag)
+            predict_output["pred"].append(predicted_tag)
             total_words += 1
-            if word in train_words1:  # Known word
+            if word in known_words:  # Known word
                 known_total += 1
                 if true_tag == predicted_tag:
                     known_correct += 1
@@ -254,6 +219,7 @@ def run_viterbi_on_test_set(test_set1, transition_probabilities, emission_probab
     print(f"Known words error rate: {known_error_rate:.4f}")
     print(f"Unknown words error rate: {unknown_error_rate:.4f}")
     print(f"Overall error rate: {overall_error_rate:.4f}")
+    return predict_output
 
 
 def assign_pseudo_word(word):
@@ -285,6 +251,7 @@ def assign_pseudo_word(word):
 
     # Default: Unknown word
     return "<UNKNOWN>"
+
 
 
 def get_unknown_and_low_freq_words(df_train, df_test, freq_threshold=5):
@@ -419,6 +386,34 @@ def get_all_tags(train_set1):
             tags.add(tag)
     return tags
 
+def plot_heatplot(confusion_mat):
+    import seaborn as sns
+    import matplotlib.pyplot as plt
+
+    # Assuming `confusion_mat` is a DataFrame
+    pivot_table = pd.pivot(confusion_mat, index="tag", columns="pred", values="word").fillna(0)
+
+    # Plot the heatmap
+    plt.figure(figsize=(18, 12))
+    sns.heatmap(
+        pivot_table, 
+        annot=True, 
+        fmt=".0f", 
+        cmap="Reds",  # Red gradient from white (low) to red (high)
+        cbar=True,
+        linewidths=0.5  # Optional: adds small lines between cells for clarity
+    )
+
+    # Add labels and title
+    plt.title("Confusion Matrix Heatmap", fontsize=16)
+    plt.xlabel("Predicted Tags", fontsize=12)
+    plt.ylabel("True Tags", fontsize=12)
+    plt.xticks(rotation=45)
+    plt.yticks(rotation=0)
+    plt.tight_layout()
+    plt.show()
+
+
 
 if __name__ == "__main__":
     # Load the data
@@ -439,18 +434,19 @@ if __name__ == "__main__":
     print(f"Overall error rate: {overall_error_rate:.4f}")
 
     print("\nQ3c (iii) viterbi algorithm")
+    
     transition_probabilities, emission_probabilities = compute_transition_emission_probabilities(
         train_set, test_set)
     all_tags = get_all_tags(train_set)
     train_words = set(word for sentence in train_set for word, _ in sentence)
-    run_viterbi_on_test_set(test_set, transition_probabilities, emission_probabilities, all_tags,
+    preidcted_output = run_viterbi_on_test_set(test_set, transition_probabilities, emission_probabilities, all_tags,
                             train_words, smoothing_param=0)
 
     # Question d
     print("\nQ3d (ii) viterbi algorithm with add-1 smoothing")
     transition_probabilities2, emission_probabilities2 = compute_transition_emission_probabilities(
         train_set,test_set, smoothing_param=1)
-    run_viterbi_on_test_set(test_set, transition_probabilities2, emission_probabilities2,
+    q4 = run_viterbi_on_test_set(test_set, transition_probabilities2, emission_probabilities2,
                             all_tags, train_words, smoothing_param=1)
 
     print("\nQ3e (ii) viterbi algorithm with pseudo words")
@@ -460,15 +456,22 @@ if __name__ == "__main__":
         pseudo_train, pseudo_test))
     all_tags_pseudo = get_all_tags(pseudo_train)
     train_words_pseudo = set(word for sentence in pseudo_train for word, _ in sentence)
-    run_viterbi_on_test_set(pseudo_test, transition_probabilities_pseudo,
+    q5_dict = run_viterbi_on_test_set(pseudo_test, transition_probabilities_pseudo,
                             emission_probabilities_pseudo, all_tags_pseudo,
-                            train_words_pseudo)
+                            train_words_pseudo,known_words=train_words)
 
+    
     print("\nQ3e (iii)  viterbi algorithm with pseudo words and add-1 smoothing")
     transition_probabilities_pseudo, emission_probabilities_pseudo = (
         compute_transition_emission_probabilities(
             pseudo_train,pseudo_test , smoothing_param=1))
     all_tags_pseudo = get_all_tags(pseudo_train)
-    run_viterbi_on_test_set(pseudo_test, transition_probabilities_pseudo,
+    q6_dict = run_viterbi_on_test_set(pseudo_test, transition_probabilities_pseudo,
                             emission_probabilities_pseudo, all_tags_pseudo,
-                            train_words_pseudo, smoothing_param=1)
+                            train_words_pseudo, smoothing_param=1,known_words = train_words)
+    q6 = pd.DataFrame(q6_dict)
+    confusion_mat = q6.groupby(["tag","pred"])["word"].nunique().reset_index()
+    confusion_mat = confusion_mat[confusion_mat["word"]>0]
+    plot_heatplot(confusion_mat)
+    
+
