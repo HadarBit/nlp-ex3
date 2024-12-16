@@ -31,14 +31,24 @@ def load_data():
     return train_set, test_set
 
 
-def compute_transition_emission_probabilities(train_set, smoothing_param=0):
+from collections import defaultdict
+
+def compute_transition_emission_probabilities(train_set, test_set, smoothing_param=0):
     # Transition and emission counts
     transition_counts = defaultdict(lambda: defaultdict(int))
     emission_counts = defaultdict(lambda: defaultdict(int))
     tag_counts = defaultdict(int)
-    word_set = set()
 
-    # Process each sentence
+    # Collect unique words and tags from training set (no need for test set here)
+    unique_words = set()
+    unique_tags = set()
+
+    for sentence in train_set:
+        for word, tag in sentence:
+            unique_words.add(word)
+            unique_tags.add(tag)
+
+    # Process training set for transition and emission counts
     for sentence in train_set:
         previous_tag = START_TAG
         for word, tag in sentence:
@@ -48,36 +58,108 @@ def compute_transition_emission_probabilities(train_set, smoothing_param=0):
             tag_counts[tag] += 1
             previous_tag = tag
 
-            if smoothing_param:
-                word_set.add(word)
-
         # Handle end-of-sentence transition
         transition_counts[previous_tag][END_TAG] += 1
 
-    # Compute probabilities
-    transition_probabilities = {}
-    for prev_tag, next_tags in transition_counts.items():
-        total = sum(next_tags.values())
-        transition_probabilities[prev_tag] = {tag: count / total for tag, count in
-                                              next_tags.items()}
+    # Compute transition probabilities
+    transition_probabilities = {
+        prev_tag: {
+            tag: count / sum(next_tags.values())
+            for tag, count in next_tags.items()
+        }
+        for prev_tag, next_tags in transition_counts.items()
+    }
 
+    # Compute emission probabilities
     emission_probabilities = {}
-    vocab_size = len(word_set)
-    for tag, words in emission_counts.items():
+    vocab_size = len(unique_words)  # For smoothing calculations
+    for tag in unique_tags:
         total = tag_counts[tag]
+        tag_total_with_smoothing = total + smoothing_param * vocab_size
+
         emission_probabilities[tag] = {
-            word: (count + smoothing_param) / (total + smoothing_param * vocab_size)
-            # Add smoothing to the denominator
-            for word, count in words.items()
+            word: (emission_counts[tag][word] + smoothing_param) / tag_total_with_smoothing
+            for word in unique_words
         }
 
     return transition_probabilities, emission_probabilities
 
 
+# def compute_transition_emission_probabilities(train_set, test_set, smoothing_param=0):
+#     # Transition and emission counts
+#     transition_counts = defaultdict(lambda: defaultdict(int))
+#     emission_counts = defaultdict(lambda: defaultdict(int))
+#     tag_counts = defaultdict(int)
+#
+#     # Process each sentence
+#     unique_words ,unique_tags = set(), set()
+#     for dataset in [train_set, test_set]:
+#         for sentence in dataset:
+#             for word, tag in sentence:
+#                 unique_words.add(word)
+#                 unique_tags.add(tag)
+#
+#     # Initialize emission counts with all words and tags set to 0
+#     for tag in unique_tags:
+#         for word in unique_words:
+#             emission_counts[tag][word] = 0
+#
+#     for sentence in train_set:
+#         previous_tag = START_TAG
+#         for word, tag in sentence:
+#             # Update counts
+#             transition_counts[previous_tag][tag] += 1
+#             emission_counts[tag][word] += 1
+#             tag_counts[tag] += 1
+#             previous_tag = tag
+#
+#         # Handle end-of-sentence transition
+#         transition_counts[previous_tag][END_TAG] += 1
+#
+#     # Compute probabilities
+#     transition_probabilities = {}
+#     for prev_tag, next_tags in transition_counts.items():
+#         total = sum(next_tags.values())
+#         transition_probabilities[prev_tag] = {tag: count / total for tag, count in
+#                                               next_tags.items()}
+#
+#     emission_probabilities = {}
+#     # for tag, words in emission_counts.items():
+#     #     total = tag_counts[tag]
+#     #     if smoothing_param > 0:
+#     #         emission_probabilities[tag] = {
+#     #             word: (count + smoothing_param) / sum(
+#     #                 [emission_counts[tag][word] + smoothing_param for word in
+#     #                  emission_counts[tag].keys()])
+#     #             for word, count in words.items()
+#     #         }
+#     #     else:
+#     #         emission_probabilities[tag] = {
+#     #             word: count / total  if count > 0 else 0
+#     #             for word, count in words.items()
+#     #         }
+#     for tag in unique_tags:
+#         emission_probabilities[tag] = {}
+#         tag_total_with_smoothing = sum(
+#                     [emission_counts[tag][word] + smoothing_param for word in
+#                      emission_counts[tag].keys()])
+#         total = tag_counts[tag]
+#         for word in unique_words:
+#             emission_probabilities[tag][word] = 0
+#             if smoothing_param > 0 :
+#                 emission_probabilities[tag][word] = (emission_counts[tag][word] +smoothing_param) / tag_total_with_smoothing
+#             else:
+#                 if total > 0 :
+#                     emission_probabilities[tag][word] = emission_counts[tag][word]/total
+#
+#
+#     return transition_probabilities, emission_probabilities
+
+
 def viterbi_algorithm(sentence, transition_probabilities, emission_probabilities, all_tags,
-                      train_words):
-    # unknown = 0
-    unknown = 1e-6
+                      train_words, smoothing_param):
+    unknown = 0
+    # unknown = 1e-6
     dp = [[0.0 for _ in range(len(all_tags))] for _ in range(len(sentence))]
     backpointers = [[0 for _ in range(len(all_tags))] for _ in range(len(sentence))]
     tag_to_index = {tag: i for i, tag in enumerate(all_tags)}
@@ -86,17 +168,20 @@ def viterbi_algorithm(sentence, transition_probabilities, emission_probabilities
     for k in range(len(sentence)):
         cur_word = sentence[k]
         for tag in all_tags:
-            if cur_word not in train_words:
+            if cur_word not in train_words and smoothing_param == 0 :
                 emission_probabilities[DEFAULT_TAG][cur_word] = 1
             if k == 0:  # start of a sentence
-                dp[k][tag_to_index[k]] = transition_probabilities[START_TAG][tag] * \
-                                         emission_probabilities[tag][cur_word]
+                dp[k][tag_to_index[tag]] = transition_probabilities.get(START_TAG, {}).get(tag,
+                                                                                           unknown) * \
+                                           emission_probabilities.get(tag, {}).get(cur_word,
+                                                                                   unknown)
                 continue
             idx_of_best_prev_tag = 0
             max_prob = 0
             for j, prev_tag in enumerate(all_tags):
-                cur_prob = dp[k - 1][j] * transition_probabilities[prev_tag][tag] * \
-                           emission_probabilities[tag][cur_word]
+                cur_prob = (dp[k - 1][j] * transition_probabilities.get(prev_tag, {}).get(tag,
+                                                                                         unknown)
+                            * emission_probabilities.get(tag, {}).get(cur_word, unknown))
                 if cur_prob > max_prob:
                     idx_of_best_prev_tag = j
                     max_prob = cur_prob
@@ -104,10 +189,12 @@ def viterbi_algorithm(sentence, transition_probabilities, emission_probabilities
             backpointers[k][tag_to_index[tag]] = idx_of_best_prev_tag
 
     # updating the prob with the probabilties for sentence end
-    dp[-1] = [dp[-1][i] * transition_probabilities[tag][END_TAG] for i, tag in enumerate(all_tags)]
+    dp[-1] = [dp[-1][i] * transition_probabilities.get(tag, {}).get(END_TAG, unknown) for i, tag in
+              enumerate(all_tags)]
 
     # Backtracking to find the best sequence
     best_last_tag_indx = np.argmax(dp[-1])
+    all_tags = list(all_tags)
     best_sequence = [all_tags[best_last_tag_indx]]
 
     for k in range(len(sentence) - 1, 0, -1):
@@ -121,7 +208,7 @@ def viterbi_algorithm(sentence, transition_probabilities, emission_probabilities
 
 
 def run_viterbi_on_test_set(test_set1, transition_probabilities, emission_probabilities, all_tags,
-                            train_words1):
+                            train_words1, smoothing_param=0):
     # Initialize counters for error rates
     known_correct = 0
     known_total = 0
@@ -137,7 +224,7 @@ def run_viterbi_on_test_set(test_set1, transition_probabilities, emission_probab
 
         # Run Viterbi algorithm to get predicted tags
         predicted_tags = viterbi_algorithm(words, transition_probabilities, emission_probabilities,
-                                           all_tags, train_words1)
+                                           all_tags, train_words1, smoothing_param)
 
         # Compare true tags with predicted tags
         for true_tag, predicted_tag, word in zip(true_tags, predicted_tags, words):
@@ -351,28 +438,37 @@ if __name__ == "__main__":
     print(f"Unknown words error rate: {unknown_error_rate:.4f}")
     print(f"Overall error rate: {overall_error_rate:.4f}")
 
-    print("\nQ3c (iii)")
+    print("\nQ3c (iii) viterbi algorithm")
     transition_probabilities, emission_probabilities = compute_transition_emission_probabilities(
-        train_set)
+        train_set, test_set)
     all_tags = get_all_tags(train_set)
     train_words = set(word for sentence in train_set for word, _ in sentence)
     run_viterbi_on_test_set(test_set, transition_probabilities, emission_probabilities, all_tags,
-                            train_words)
+                            train_words, smoothing_param=0)
 
     # Question d
-    print("\nQ3d (ii)")
+    print("\nQ3d (ii) viterbi algorithm with add-1 smoothing")
     transition_probabilities2, emission_probabilities2 = compute_transition_emission_probabilities(
-        train_set, smoothing_param=1)
+        train_set,test_set, smoothing_param=1)
     run_viterbi_on_test_set(test_set, transition_probabilities2, emission_probabilities2,
-                            all_tags, train_words)
+                            all_tags, train_words, smoothing_param=1)
 
-    print("\nQ3e (ii)")
-    # pseudo_train, pseudo_test = create_pseudo_words(train_set, test_set, 5)
-    # transition_probabilities_pseudo, emission_probabilities_pseudo = (
-    #     compute_transition_emission_probabilities(
-    #     pseudo_train))
-    # all_tags_pseudo = get_all_tags(pseudo_train)
-    # train_words_pseudo = set(word for sentence in pseudo_train for word, _ in sentence)
-    # run_viterbi_on_test_set(pseudo_test, transition_probabilities_pseudo,
-    #                         emission_probabilities_pseudo, all_tags_pseudo,
-    #                         train_words_pseudo)
+    print("\nQ3e (ii) viterbi algorithm with pseudo words")
+    pseudo_train, pseudo_test = create_pseudo_words(train_set, test_set, 5)
+    transition_probabilities_pseudo, emission_probabilities_pseudo = (
+        compute_transition_emission_probabilities(
+        pseudo_train, pseudo_test))
+    all_tags_pseudo = get_all_tags(pseudo_train)
+    train_words_pseudo = set(word for sentence in pseudo_train for word, _ in sentence)
+    run_viterbi_on_test_set(pseudo_test, transition_probabilities_pseudo,
+                            emission_probabilities_pseudo, all_tags_pseudo,
+                            train_words_pseudo)
+
+    print("\nQ3e (iii)  viterbi algorithm with pseudo words and add-1 smoothing")
+    transition_probabilities_pseudo, emission_probabilities_pseudo = (
+        compute_transition_emission_probabilities(
+            pseudo_train,pseudo_test , smoothing_param=1))
+    all_tags_pseudo = get_all_tags(pseudo_train)
+    run_viterbi_on_test_set(pseudo_test, transition_probabilities_pseudo,
+                            emission_probabilities_pseudo, all_tags_pseudo,
+                            train_words_pseudo, smoothing_param=1)
