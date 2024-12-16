@@ -11,7 +11,7 @@ def load_data():
     nltk.download('brown')
 
     # Load the tagged sentences from the 'news' category
-    news_sentences = brown.tagged_sents(categories='news')
+    news_sentences = list(brown.tagged_sents(categories='news'))
 
     # Calculate the split index for the last 10% of the sentences
     split_index = int(len(news_sentences) * 0.9)
@@ -233,9 +233,7 @@ def __update_data_set_with_pseudo_words(train_set, test_set, words_for_pseudo_ta
     new_test = []
     for i, sentence in enumerate(test_set):
         new_sentence = []
-        print(f"Sentenec is {sentence}, index {i}")
         for word, tag in sentence:
-            # print(f"Processing word: {word}, tag: {tag}")
             if word in words_for_pseudo_tagging:
                 # Replace word with its pseudo-word and retain the tag
                 new_sentence.append((word, pseudo_words[word]))
